@@ -2,7 +2,7 @@ use error_chain::error_chain;
 use std::io::Read;
 use std::io::stdin;
 use regex::Regex;
-use log::{info, error};
+use log::{info, error, LevelFilter};
 use clap::{Arg, App};
 use m3u8_rs::playlist::{MediaPlaylist, MediaPlaylistType, MediaSegment};
 
@@ -18,24 +18,41 @@ fn main() -> Result<()> {
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"));
 
     let matches = App::new("Twitch Playlist Fixer")
-        .version("0.1")
+        .version("0.2")
         .author("vyneer <vyneer@protonmail.com>")
         .about("Fixes broken m3u8 twitch playlists.")
+        .arg(Arg::with_name("input")
+            .help("Sets the url to process."))
         .arg(Arg::with_name("old")
             .short("o")
             .help("Uses the old (slow, but more reliable) method of checking for segments."))
+        .arg(Arg::with_name("v")
+            .short("v")
+            .help("Shows verbose info."))
         .get_matches();
 
     let re = Regex::new(r"[^/]+").unwrap();
 
-    println!("Please input the m3u8 url.");
-
     let mut url = String::new();
 
-    stdin()
-        .read_line(&mut url)
-        .expect("Failed to read line.");
-    
+    let input_url = matches.value_of("input");
+
+    if input_url == None {
+        println!("Please input the m3u8 url.");
+
+        stdin()
+            .read_line(&mut url)
+            .expect("Failed to read line.");
+    } else {
+        url = input_url.unwrap().to_string();
+
+        if matches.is_present("v") {
+            log::set_max_level(LevelFilter::Info);
+        } else {
+            log::set_max_level(LevelFilter::Warn);
+        }
+    }
+
     let state = match url.contains("twitch.tv") {
         false => {
             println!("This isn't a valid URL (need twitch.tv in URL).");
@@ -122,7 +139,9 @@ fn main() -> Result<()> {
         playlist.write_to(&mut file).unwrap();
     }
 
-    println!("Press any key to exit.");
-    stdin().read_line(&mut String::new()).unwrap();
+    if input_url == None {
+        println!("Press Enter to exit.");
+        stdin().read_line(&mut String::new()).unwrap();
+    }
     Ok(())
 }
