@@ -91,10 +91,14 @@ fn main() -> Result<()> {
                 };
                 if matches.is_present("old") {
                     for segment in pl.segments {
+                        let mut remove_chars = 3;
                         let url = format!("{}{}", base_url, segment.uri);
                         let res = reqwest::blocking::get(&url)?;
                         if res.status() == 403 {
-                            let muted_url = format!("{}-muted.ts", &url.clone()[..url.len()-11]);
+                            if segment.uri.contains("unmuted") {
+                                remove_chars = 11;
+                            }
+                            let muted_url = format!("{}-muted.ts", &url.clone()[..url.len()-remove_chars]);
                             playlist.segments.push(MediaSegment {
                                 uri: muted_url.clone(),
                                 duration: segment.duration,
