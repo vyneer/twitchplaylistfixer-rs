@@ -5,6 +5,8 @@ use regex::Regex;
 use log::{info, error, LevelFilter};
 use clap::{Arg, App};
 use m3u8_rs::playlist::{MediaPlaylist, MediaPlaylistType, MediaSegment};
+use rayon::prelude::*;
+extern crate alphanumeric_sort;
 
 error_chain! {
     foreign_links {
@@ -90,30 +92,37 @@ fn main() -> Result<()> {
                     ..Default::default()
                 };
                 if matches.is_present("old") {
-                    for segment in pl.segments {
-                        let mut remove_chars = 3;
+                    let mut initial_url_vec: Vec<String> = Vec::new();
+                    let client = reqwest::blocking::Client::new();
+                    let segments = (pl.segments).clone();
+                    for segment in segments {
                         let url = format!("{}{}", base_url, segment.uri);
-                        let res = reqwest::blocking::get(&url)?;
+                        initial_url_vec.push(url);
+                    }
+                    initial_url_vec.par_iter_mut().for_each( |url| {
+                        let mut remove_chars = 3;
+                        let res = client.get(&url.clone()).send().expect("Error");
                         if res.status() == 403 {
-                            if segment.uri.contains("unmuted") {
+                            if url.contains("unmuted") {
                                 remove_chars = 11;
                             }
-                            let muted_url = format!("{}-muted.ts", &url.clone()[..url.len()-remove_chars]);
-                            playlist.segments.push(MediaSegment {
-                                uri: muted_url.clone(),
-                                duration: segment.duration,
-                                ..Default::default()
-                            });
-                            info!("Found the muted version of this .ts file - {:?}", muted_url)
+                            //let muted_url = format!("{}-muted.ts", &url.clone()[..url.len()-remove_chars]);
+                            *url = format!("{}-muted.ts", &url.clone()[..url.len()-remove_chars]);
+                            info!("Found the muted version of this .ts file - {:?}", url)
                         } else if res.status() == 200 {
-                            playlist.segments.push(MediaSegment {
-                                uri: url.clone(),
-                                duration: segment.duration,
-                                ..Default::default()
-                            });
                             info!("Found the unmuted version of this .ts file - {:?}", url)
                         }
-                    }
+                    });
+                    let initial_url_vec = &mut initial_url_vec[..];
+                    alphanumeric_sort::sort_str_slice(initial_url_vec);
+                    for (i, segment) in pl.segments.iter().enumerate() {
+                        playlist.segments.push(MediaSegment {
+                            uri: initial_url_vec[i].clone(),
+                            duration: segment.duration,
+                            ..Default::default()
+                        });
+                        info!("Added this .ts file - {:?}", initial_url_vec[i])
+                    };
                 } else {
                     for segment in pl.segments {
                         let url = format!("{}{}", base_url, segment.uri);
