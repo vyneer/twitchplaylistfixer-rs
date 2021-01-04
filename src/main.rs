@@ -20,7 +20,7 @@ fn main() -> Result<()> {
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"));
 
     let matches = App::new("Twitch Playlist Fixer")
-        .version("0.2")
+        .version("0.3")
         .author("vyneer <vyneer@protonmail.com>")
         .about("Fixes broken m3u8 twitch playlists.")
         .arg(Arg::with_name("input")
@@ -55,9 +55,9 @@ fn main() -> Result<()> {
         }
     }
 
-    let state = match url.contains("twitch.tv") {
+    let state = match url.contains("twitch.tv") || url.contains("cloudfront.net") {
         false => {
-            println!("This isn't a valid URL (need twitch.tv in URL).");
+            println!("This isn't a valid URL (need twitch.tv or cloudfront.net in URL).");
             false
         },
         true => true,
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
         for elem in re.captures_iter(&url) {
             base_url_parts.push(elem[0].to_string());
         }
-        let base_url = format!("https://vod-secure.twitch.tv/{}/{}/", base_url_parts[2], base_url_parts[3]);
+        let base_url = format!("https://{}/{}/{}/", base_url_parts[1], base_url_parts[2], base_url_parts[3]);
     
         let mut res = reqwest::blocking::get(&url)?;
         let mut body = String::new();
